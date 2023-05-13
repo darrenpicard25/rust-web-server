@@ -22,7 +22,9 @@ struct TodoDocument {
     id: Uuid,
     title: String,
     description: String,
+    #[allow(dead_code)]
     created_at: PrimitiveDateTime,
+    #[allow(dead_code)]
     updated_at: PrimitiveDateTime,
 }
 
