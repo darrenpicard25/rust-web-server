@@ -4,12 +4,43 @@ use axum::{
     routing::post,
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     app_state::AppState,
-    domain::services::todo_service::{CreateInput, UpdateInput},
+    domain::{
+        entities::todo::Todo,
+        services::todo_service::{CreateInput, UpdateInput},
+    },
 };
+
+use super::error::ApiResult;
+
+#[derive(Serialize)]
+struct ApiTodo {
+    id: String,
+    title: String,
+    description: String,
+}
+
+impl From<Todo> for ApiTodo {
+    fn from(value: Todo) -> Self {
+        tracing::info!("Transforming Todo into ApiTodo");
+
+        Self {
+            id: value.id,
+            title: value.title,
+            description: value.description,
+        }
+    }
+}
+
+impl IntoResponse for ApiTodo {
+    fn into_response(self) -> axum::response::Response {
+        tracing::info!("Transforming ApiTodo into response");
+        Json(self).into_response()
+    }
+}
 
 pub fn routes(app_state: AppState) -> Router {
     Router::new()
@@ -18,30 +49,28 @@ pub fn routes(app_state: AppState) -> Router {
         .with_state(app_state)
 }
 
-async fn handler_list(State(AppState { todo_service }): State<AppState>) -> impl IntoResponse {
+async fn handler_list(
+    State(AppState { todo_service }): State<AppState>,
+) -> ApiResult<Json<Vec<ApiTodo>>> {
     tracing::info!("->> {:12} - todo list handler", "HANDLER");
 
-    let todos = todo_service.list().await;
-
-    format!(
-        "Todo List, {}!",
-        todos.into_iter().fold(String::new(), |mut acc, item| {
-            acc.push_str(&item.id);
-            acc.push(',');
-            acc
-        })
-    )
+    Ok(Json(
+        todo_service
+            .list()
+            .await?
+            .into_iter()
+            .map(|entity| entity.into())
+            .collect(),
+    ))
 }
 
 async fn handler_get(
     State(AppState { todo_service }): State<AppState>,
     Path(id): Path<String>,
-) -> impl IntoResponse {
+) -> ApiResult<ApiTodo> {
     tracing::info!("->> {:12} - todo get handler: {:?}", "HANDLER", id);
 
-    let todo = todo_service.get(id).await;
-
-    format!("Todo Get, {}", todo.id)
+    Ok(todo_service.get(id).await?.into())
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,17 +82,15 @@ struct CreatePayload {
 async fn handler_create(
     State(AppState { todo_service }): State<AppState>,
     Json(payload): Json<CreatePayload>,
-) -> impl IntoResponse {
+) -> ApiResult<ApiTodo> {
     tracing::info!("->> {:12} - todo create handler: {:?}", "HANDLER", payload);
 
-    let todo = todo_service
-        .create(CreateInput {
-            title: payload.title,
-            description: payload.description,
-        })
-        .await;
+    let input = CreateInput {
+        title: payload.title,
+        description: payload.description,
+    };
 
-    format!("Todo Create, {}", todo.id)
+    Ok(todo_service.create(input).await?.into())
 }
 
 #[derive(Debug, Deserialize)]
@@ -76,18 +103,13 @@ async fn handler_update(
     State(AppState { todo_service }): State<AppState>,
     Path(id): Path<String>,
     Json(payload): Json<UpdatePayload>,
-) -> impl IntoResponse {
+) -> ApiResult<ApiTodo> {
     tracing::info!("->> {:12} - todo update handler: {:?}", "HANDLER", payload);
 
-    let todo = todo_service
-        .update(
-            id,
-            UpdateInput {
-                title: payload.title,
-                description: payload.description,
-            },
-        )
-        .await;
+    let input = UpdateInput {
+        title: payload.title,
+        description: payload.description,
+    };
 
-    format!("Todo Update, {}", todo.id)
+    Ok(todo_service.update(id, input).await?.into())
 }

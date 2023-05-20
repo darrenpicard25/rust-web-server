@@ -2,6 +2,7 @@ use axum::Router;
 
 use crate::{app_state::AppState, error::ServiceStartupError};
 
+pub mod error;
 mod routes_hello;
 mod routes_todo;
 

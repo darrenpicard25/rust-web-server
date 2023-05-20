@@ -6,13 +6,16 @@ use sqlx::{
         time::{OffsetDateTime, PrimitiveDateTime},
         Uuid,
     },
-    FromRow,
+    Error, FromRow,
 };
 
 use crate::{
     domain::{
         entities::todo::Todo,
-        repositories::todo_repository::{CreateInput, TodoRepositoryPort, UpdateInput},
+        repositories::{
+            error::{RepositoryError, RepositoryResult},
+            todo_repository::{CreateInput, TodoRepositoryPort, UpdateInput},
+        },
     },
     infrastructure::Database,
 };
@@ -50,58 +53,65 @@ impl TodoRepository {
 
 #[async_trait]
 impl TodoRepositoryPort for TodoRepository {
-    async fn list(&self) -> Vec<Todo> {
-        sqlx::query_as::<_, TodoDocument>("SELECT * FROM todos")
+    async fn list(&self) -> RepositoryResult<Vec<Todo>> {
+        let documents = sqlx::query_as::<_, TodoDocument>("SELECT * FROM todos")
             .fetch_all(&self.db.pool())
             .await
-            .unwrap()
-            .into_iter()
-            .map(|doc| doc.into())
-            .collect()
+            .map_err(|_| RepositoryError::Unknown)?;
+
+        Ok(documents.into_iter().map(|doc| doc.into()).collect())
     }
 
-    async fn find_by_id(&self, id: String) -> Todo {
-        sqlx::query_as::<_, TodoDocument>("SELECT * FROM todos WHERE id = $1")
-            .bind(Uuid::from_str(&id).unwrap())
+    async fn find_by_id(&self, id: String) -> RepositoryResult<Todo> {
+        let document = sqlx::query_as::<_, TodoDocument>("SELECT * FROM todos WHERE id = $1")
+            .bind(Uuid::from_str(&id).map_err(|_| RepositoryError::InvalidUuid)?)
             .fetch_one(&self.db.pool())
             .await
-            .unwrap()
-            .into()
+            .map_err(|e| match e {
+                Error::RowNotFound => RepositoryError::NotFound,
+                _ => RepositoryError::Unknown,
+            })?;
+
+        Ok(document.into())
     }
 
-    async fn update_one(&self, input: UpdateInput) -> Todo {
-        let document = self.find_by_id(input.id).await;
+    async fn update_one(&self, input: UpdateInput) -> RepositoryResult<Todo> {
+        let document = self.find_by_id(input.id).await?;
         let now = OffsetDateTime::now_utc();
         let now = PrimitiveDateTime::new(now.date(), now.time());
 
-        sqlx::query_as::<_, TodoDocument>(
-            r#"UPDATE todos 
-            SET 
+        let document = sqlx::query_as::<_, TodoDocument>(
+            r#"UPDATE todos
+            SET
             title = $1,
-            description = $2, 
-            updated_at = $3 
-            WHERE id = $4 
+            description = $2,
+            updated_at = $3
+            WHERE id = $4
             RETURNING *"#,
         )
         .bind(input.title.unwrap_or(document.title))
         .bind(input.description.unwrap_or(document.description))
         .bind(now)
-        .bind(Uuid::from_str(&document.id).unwrap())
+        .bind(Uuid::from_str(&document.id).map_err(|_| RepositoryError::InvalidUuid)?)
         .fetch_one(&self.db.pool())
         .await
-        .unwrap()
-        .into()
+        .map_err(|e| match e {
+            Error::RowNotFound => RepositoryError::NotFound,
+            _ => RepositoryError::Unknown,
+        })?;
+
+        Ok(document.into())
     }
 
-    async fn create(&self, input: CreateInput) -> Todo {
+    async fn create(&self, input: CreateInput) -> RepositoryResult<Todo> {
         let id = Uuid::new_v4();
         let now = OffsetDateTime::now_utc();
         let now = PrimitiveDateTime::new(now.date(), now.time());
 
-        sqlx::query_as::<_, TodoDocument>(
-            r#"INSERT INTO todos 
-            (id, title, description, created_at, updated_at) 
-            VALUES ($1, $2, $3, $4, $5) 
+        let document = sqlx::query_as::<_, TodoDocument>(
+            r#"INSERT INTO todos
+            (id, title, description, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING *"#,
         )
         .bind(id)
@@ -111,7 +121,10 @@ impl TodoRepositoryPort for TodoRepository {
         .bind(now)
         .fetch_one(&self.db.pool())
         .await
-        .unwrap()
-        .into()
+        .map_err(|e| match e {
+            _ => RepositoryError::Unknown,
+        })?;
+
+        Ok(document.into())
     }
 }

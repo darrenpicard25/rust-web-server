@@ -8,7 +8,10 @@ use crate::domain::{
         CreateInput as RepositoryCreateInput, TodoRepositoryPort,
         UpdateInput as RepositoryUpdateInput,
     },
-    services::todo_service::{CreateInput, TodoServicePort, UpdateInput},
+    services::{
+        error::ServiceResult,
+        todo_service::{CreateInput, TodoServicePort, UpdateInput},
+    },
 };
 
 pub struct TodoService {
@@ -23,34 +26,46 @@ impl TodoService {
 
 #[async_trait]
 impl TodoServicePort for TodoService {
-    async fn list(&self) -> Vec<Todo> {
-        self.todo_repository.list().await
+    async fn list(&self) -> ServiceResult<Vec<Todo>> {
+        let todos = self.todo_repository.list().await?;
+
+        Ok(todos)
     }
 
-    async fn get(&self, todo_id: String) -> Todo {
-        self.todo_repository.find_by_id(todo_id).await
+    async fn get(&self, todo_id: String) -> ServiceResult<Todo> {
+        let todo = self.todo_repository.find_by_id(todo_id).await?;
+
+        Ok(todo)
     }
 
-    async fn create(&self, input: CreateInput) -> Todo {
-        self.todo_repository
+    async fn create(&self, input: CreateInput) -> ServiceResult<Todo> {
+        let todo = self
+            .todo_repository
             .create(RepositoryCreateInput {
                 title: input.title,
                 description: input.description,
             })
-            .await
+            .await?;
+
+        Ok(todo)
     }
 
-    async fn update(&self, id: String, update: UpdateInput) -> Todo {
+    async fn update(&self, id: String, update: UpdateInput) -> ServiceResult<Todo> {
         if update.title.is_none() && update.description.is_none() {
-            return self.todo_repository.find_by_id(id).await;
+            let todo = self.todo_repository.find_by_id(id).await?;
+
+            return Ok(todo);
         }
 
-        self.todo_repository
+        let todo = self
+            .todo_repository
             .update_one(RepositoryUpdateInput {
                 id,
                 title: update.title,
                 description: update.description,
             })
-            .await
+            .await?;
+
+        Ok(todo)
     }
 }
