@@ -4,11 +4,13 @@ use crate::domain::entities::todo::Todo;
 
 use super::error::ServiceResult;
 
+#[derive(Debug)]
 pub struct CreateInput {
     pub title: String,
     pub description: String,
 }
 
+#[derive(Debug)]
 pub struct UpdateInput {
     pub title: Option<String>,
     pub description: Option<String>,

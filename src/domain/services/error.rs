@@ -11,7 +11,6 @@ pub type ServiceResult<T> = Result<T, ServiceError>;
 
 impl From<RepositoryError> for ServiceError {
     fn from(value: RepositoryError) -> Self {
-        tracing::error!("Converting repository error: {:?}", &value);
         match value {
             RepositoryError::NotFound => ServiceError::NotFound,
             RepositoryError::Unknown => ServiceError::Unknown,

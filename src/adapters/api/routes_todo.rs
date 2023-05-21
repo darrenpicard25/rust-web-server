@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     response::IntoResponse,
-    routing::post,
+    routing::{patch, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -25,8 +25,6 @@ struct ApiTodo {
 
 impl From<Todo> for ApiTodo {
     fn from(value: Todo) -> Self {
-        tracing::info!("Transforming Todo into ApiTodo");
-
         Self {
             id: value.id,
             title: value.title,
@@ -37,7 +35,6 @@ impl From<Todo> for ApiTodo {
 
 impl IntoResponse for ApiTodo {
     fn into_response(self) -> axum::response::Response {
-        tracing::info!("Transforming ApiTodo into response");
         Json(self).into_response()
     }
 }
@@ -45,14 +42,14 @@ impl IntoResponse for ApiTodo {
 pub fn routes(app_state: AppState) -> Router {
     Router::new()
         .route("/todo", post(handler_create).get(handler_list))
-        .route("/todo/:id", post(handler_update).get(handler_get))
+        .route("/todo/:id", patch(handler_update).get(handler_get))
         .with_state(app_state)
 }
 
 async fn handler_list(
-    State(AppState { todo_service }): State<AppState>,
+    State(AppState { todo_service, .. }): State<AppState>,
 ) -> ApiResult<Json<Vec<ApiTodo>>> {
-    tracing::info!("->> {:12} - todo list handler", "HANDLER");
+    tracing::info!("Get /todo");
 
     Ok(Json(
         todo_service
@@ -65,10 +62,10 @@ async fn handler_list(
 }
 
 async fn handler_get(
-    State(AppState { todo_service }): State<AppState>,
+    State(AppState { todo_service, .. }): State<AppState>,
     Path(id): Path<String>,
 ) -> ApiResult<ApiTodo> {
-    tracing::info!("->> {:12} - todo get handler: {:?}", "HANDLER", id);
+    tracing::info!("Get /todo/{id}");
 
     Ok(todo_service.get(id).await?.into())
 }
@@ -80,10 +77,10 @@ struct CreatePayload {
 }
 
 async fn handler_create(
-    State(AppState { todo_service }): State<AppState>,
+    State(AppState { todo_service, .. }): State<AppState>,
     Json(payload): Json<CreatePayload>,
 ) -> ApiResult<ApiTodo> {
-    tracing::info!("->> {:12} - todo create handler: {:?}", "HANDLER", payload);
+    tracing::info!("Post /todo | {payload:?}");
 
     let input = CreateInput {
         title: payload.title,
@@ -100,11 +97,11 @@ struct UpdatePayload {
 }
 
 async fn handler_update(
-    State(AppState { todo_service }): State<AppState>,
+    State(AppState { todo_service, .. }): State<AppState>,
     Path(id): Path<String>,
     Json(payload): Json<UpdatePayload>,
 ) -> ApiResult<ApiTodo> {
-    tracing::info!("->> {:12} - todo update handler: {:?}", "HANDLER", payload);
+    tracing::info!("Patch /todo/{id} | {payload:?}");
 
     let input = UpdateInput {
         title: payload.title,
