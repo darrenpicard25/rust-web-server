@@ -31,12 +31,12 @@ struct TodoDocument {
     updated_at: PrimitiveDateTime,
 }
 
-impl Into<Todo> for TodoDocument {
-    fn into(self) -> Todo {
+impl From<TodoDocument> for Todo {
+    fn from(val: TodoDocument) -> Self {
         Todo {
-            id: self.id.to_string(),
-            title: self.title,
-            description: self.description,
+            id: val.id.to_string(),
+            title: val.title,
+            description: val.description,
         }
     }
 }
@@ -137,9 +137,7 @@ impl TodoRepositoryPort for TodoRepository {
         .await
         .map_err(|e| {
             tracing::error!("{e}");
-            match e {
-                _ => RepositoryError::Unknown,
-            }
+            RepositoryError::Unknown
         })?;
 
         Ok(document.into())

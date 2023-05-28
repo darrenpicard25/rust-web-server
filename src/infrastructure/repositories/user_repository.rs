@@ -31,12 +31,12 @@ struct UserDocument {
     updated_at: PrimitiveDateTime,
 }
 
-impl Into<User> for UserDocument {
-    fn into(self) -> User {
+impl From<UserDocument> for User {
+    fn from(val: UserDocument) -> Self {
         User {
-            id: self.id.to_string(),
-            email: self.email,
-            first_name: self.first_name,
+            id: val.id.to_string(),
+            email: val.email,
+            first_name: val.first_name,
         }
     }
 }
@@ -144,9 +144,7 @@ impl UserRepositoryPort for UserRepository {
         .await
         .map_err(|e| {
             tracing::error!("User Repository Error: {e}");
-            match e {
-                _ => RepositoryError::Unknown,
-            }
+            RepositoryError::Unknown
         })?;
 
         Ok(document.into())

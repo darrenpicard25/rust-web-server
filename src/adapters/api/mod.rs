@@ -11,5 +11,5 @@ pub fn build_route(app_state: AppState) -> Result<Router, ServiceStartupError> {
     Ok(Router::new()
         .merge(routes_hello::routes())
         .merge(routes_todo::routes(app_state.clone()))
-        .merge(routes_user::routes(app_state.clone())))
+        .merge(routes_user::routes(app_state)))
 }

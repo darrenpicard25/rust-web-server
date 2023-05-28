@@ -30,8 +30,6 @@ impl IntoResponse for ClientApiError {
             ClientApiError::BadInput => StatusCode::BAD_REQUEST,
         };
 
-        let response = response_code.into_response();
-
-        response
+        response_code.into_response()
     }
 }
